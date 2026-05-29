@@ -1,64 +1,248 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset=utf-8>
-<meta name=apple-mobile-web-app-capable content=yes>
+<meta charset="utf-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Netcheck by Tristan Brotherton</title>
 <link href="fonts/source_code_pro/font.css" rel="stylesheet">
-<style>html,body{width:100%;height:100%;overflow:hidden;background:#9664e1;font-family:'Source Code Pro',sans-serif;font-size:12px;margin:0;padding:0}*,*:before,*:after{box-sizing:border-box}.terminal,.terminal:before,.terminal:after,p:after{position:absolute}.terminal{height:80vh;width:80vw;margin:10vh 10vw;padding:26px 4px 4px;border-radius:5px;background:linear-gradient(#f6f6f6,#d3d3d3 20px,#7e7e7e 20px,#7e7e7e 21px,#393456 21px);box-shadow:0 0 0 1px rgba(0,0,0,0.25);-webkit-transition:all .5s ease;transition:all .5s ease}@supports(-webkit-touch-callout:none){body{overflow:hidden}.terminal{height:65vh}}.terminal:before{content:" ";width:10px;height:10px;margin:-20px 0 0 5px;border-radius:5px;background:#fc625d;box-shadow:0 0 0 1px #de413e,15px 0 #fec041,15px 0 0 1px #dda035,30px 0 #35cc4b,30px 0 0 1px #28aa36}.terminal:after{width:100%;content:"Netcheck - Tristan Brotherton";top:0;text-align:center;color:#4c4c4c;line-height:20px}p.label{color:#fff;background-color:#393456;line-height:45px;z-index:10;position:absolute;top:8px;left:0;right:20px;padding-left:15px}p.label:before{content:"$";margin-right:8px;opacity:.5;line-height:45px}p.label:after{-webkit-animation:blink 1s linear 1s infinite;animation:blink 1s linear 1s infinite;content:" ";width:8px;height:18px;margin-left:1px;background:#fec041;margin-top:11px}.data-container{color:#fff;line-height:18px;white-space:pre;overflow-y:scroll;overflow-x:hidden;top:20px;left:0;right:0;bottom:0;position:absolute;padding:15px;padding-top:50px}.status-message{text-decoration:underline;cursor:pointer;margin-right:10px;s}@-webkit-keyframes blink{0%{background:rgba(254,192,65,0)}50%{background:rgba(254,192,65,0)}51%{background:#fec041}100%{background:#fec041}}@keyframes blink{0%{background:rgba(254,192,65,0)}50%{background:rgba(254,192,65,0)}51%{background:#fec041}100%{background:#fec041}}.footer{color:#fff;position:absolute;bottom:15px;width:100%;text-align:center}.footer a{color:#fff;text-decoration:underline}</style>
+<style>
+html,body{
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#9664e1;
+  font-family:'Source Code Pro',sans-serif;
+  font-size:12px;
+  margin:0;
+  padding:0;
+}
+*,*:before,*:after{box-sizing:border-box}
+.terminal,.terminal:before,.terminal:after,p:after{position:absolute}
+.terminal{
+  height:80vh;
+  width:80vw;
+  margin:10vh 10vw;
+  padding:26px 4px 4px;
+  border-radius:5px;
+  background:linear-gradient(#f6f6f6,#d3d3d3 20px,#7e7e7e 20px,#7e7e7e 21px,#393456 21px);
+  box-shadow:0 0 0 1px rgba(0,0,0,0.25);
+  -webkit-transition:all .5s ease;
+  transition:all .5s ease;
+}
+@supports(-webkit-touch-callout:none){
+  body{overflow:hidden}
+  .terminal{height:65vh}
+}
+.terminal:before{
+  content:" ";
+  width:10px;
+  height:10px;
+  margin:-20px 0 0 5px;
+  border-radius:5px;
+  background:#fc625d;
+  box-shadow:0 0 0 1px #de413e,15px 0 #fec041,15px 0 0 1px #dda035,30px 0 #35cc4b,30px 0 0 1px #28aa36;
+}
+.terminal:after{
+  width:100%;
+  content:"Netcheck - Tristan Brotherton";
+  top:0;
+  text-align:center;
+  color:#4c4c4c;
+  line-height:20px;
+}
+p.label{
+  color:#fff;
+  background-color:#393456;
+  line-height:45px;
+  z-index:10;
+  position:absolute;
+  top:8px;
+  left:0;
+  right:20px;
+  padding-left:15px;
+}
+p.label:before{
+  content:"$";
+  margin-right:8px;
+  opacity:.5;
+  line-height:45px;
+}
+
+/* NOTE: header cursor removed (previously p.label:after) */
+
+/* data container */
+.data-container{
+  color:#fff;
+  line-height:18px;
+  white-space:pre;
+  overflow-y:scroll;
+  overflow-x:hidden;
+  top:20px;
+  left:0;
+  right:0;
+  bottom:0;
+  position:absolute;
+  padding:15px;
+  padding-top:50px;
+}
+
+/* status message */
+.status-message{
+  text-decoration:underline;
+  cursor:pointer;
+  margin-right:10px;
+}
+
+/* blink animation */
+@-webkit-keyframes blink{
+  0%{background:rgba(254,192,65,0)}
+  50%{background:rgba(254,192,65,0)}
+  51%{background:#fec041}
+  100%{background:#fec041}
+}
+@keyframes blink{
+  0%{background:rgba(254,192,65,0)}
+  50%{background:rgba(254,192,65,0)}
+  51%{background:#fec041}
+  100%{background:#fec041}
+}
+
+/* footer */
+.footer{
+  color:#fff;
+  position:absolute;
+  bottom:15px;
+  width:100%;
+  text-align:center;
+}
+.footer a{
+  color:#fff;
+  text-decoration:underline;
+}
+
+/* Links inside .data-container only — consistent terminal accent */
+.data-container a{
+  color:#fec041;
+  text-decoration:none;
+  border-bottom:1px dotted rgba(254,192,65,0.6);
+  -webkit-tap-highlight-color:transparent;
+  transition:color .12s ease, border-color .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.data-container a:visited{
+  color:#e6ab3f;
+}
+.data-container a:hover,
+.data-container a:focus,
+.data-container a:focus-visible{
+  color:#fff;
+  background:rgba(254,192,65,0.14);
+  border-bottom-color:rgba(254,192,65,0.95);
+  text-decoration:none;
+  outline:none;
+  box-shadow:0 0 0 3px rgba(254,192,65,0.08);
+  border-radius:2px;
+}
+.data-container a:active{
+  color:#fff;
+  transform:translateY(0.5px);
+}
+
+/* Real DOM cursor that sits after log contents */
+.data-container .cursor{
+  display:inline-block;
+  width:8px;
+  height:18px;
+  vertical-align:text-bottom;
+  margin-left:2px;
+  background:#fec041;
+  animation:blink 1s linear 1s infinite;
+  pointer-events:none;
+  border-radius:1px;
+}
+</style>
 <script src="js/moment.min.js"></script>
 <script src="js/jquery.min.js"></script>
 <script src="js/livestamp.min.js"></script>
 <script>
-
 // Time in seconds to check for new data.
 var UPDATE_STATS_INTERVAL_SECONDS = 60;
+
 // Disable caching
 $.ajaxSetup({
     cache: false
 });
+
+// Ensure a real cursor element exists at the end of the container
+function ensureLogCursor(containerEl) {
+    if (!containerEl) return;
+    var cursor = containerEl.querySelector('.cursor');
+    if (!cursor) {
+        cursor = document.createElement('span');
+        cursor.className = 'cursor';
+        cursor.setAttribute('aria-hidden', 'true');
+        // Add a zero-width no-break space so this inline element occupies inline flow
+        cursor.appendChild(document.createTextNode('\uFEFF'));
+        containerEl.appendChild(cursor);
+    } else {
+        // move cursor to the end if it's not already the last child
+        if (cursor !== containerEl.lastElementChild) {
+            containerEl.appendChild(cursor);
+        }
+    }
+}
+
 // Get log data
 function getConnectionData() {
     $(".status-message").html("Checking Connection Stats...");
     $.get("connection.log", function(b) {
         var a = new Date();
-        $(".data-container").html(b);
+        var container = document.querySelector(".data-container");
+        if (!container) return;
+
+        // Replace contents with server content
+        container.innerHTML = b;
+
+        // Ensure cursor exists and is at the end
+        ensureLogCursor(container);
+
+        // Scroll to bottom after content + cursor are in place
         $(".data-container").animate({
             scrollTop: $(".data-container").prop("scrollHeight")
         }, 1000);
+
+        // Update last-checked timestamp a bit later (same as before)
         setTimeout(function() {
             $(".status-message").html("Last checked: <time class='time-checked'></time>");
-            $(".time-checked").livestamp(new Date(a))
-        }, 2000)
-    })
-};
+            $(".time-checked").livestamp(new Date(a));
+        }, 2000);
+    });
+}
+
 // Update log data every N seconds
 function updateConnectionData() {
     setInterval(function() {
-            getConnectionData();
-        }, (UPDATE_STATS_INTERVAL_SECONDS * 1000));
-};
+        getConnectionData();
+    }, (UPDATE_STATS_INTERVAL_SECONDS * 1000));
+}
+
 // Fire it all up
 $(document).ready(function() {
     getConnectionData();
     updateConnectionData();
     $(".status-message").click(function() {
-        getConnectionData()
+        getConnectionData();
     });
-
 });
-
 </script>
 </head>
 <body>
-<div class=terminal>
-<p class=label>Netcheck - <span class=status-message></span></p>
-<div class=data-container>
-</div>
-</div>
-<div class=footer>
-Made with ❤️ by Tristan Brotherton -
-<a href=https://github.com/TristanBrotherton/netcheck> Get it on Github
-</a>
+  <div class="terminal">
+    <p class="label">Netcheck - <span class="status-message"></span></p>
+    <div class="data-container"></div>
+  </div>
+
+  <div class="footer">
+    Made with ❤️ by Tristan Brotherton - <a href="https://github.com/TristanBrotherton/netcheck">Get it on Github</a>
+  </div>
 </body>
 </html>

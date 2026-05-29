@@ -6,6 +6,8 @@
 ##                                       -- Tristan Brotherton                ##
 ################################################################################
 
+DEBUG=true
+
 VAR_SCRIPTNAME=`basename "$0"`
 VAR_SCRIPTLOC="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 VAR_CONNECTED=true
@@ -189,6 +191,13 @@ CHECK_FOR_SPEEDTEST() {
   fi
 }
 
+CHECK_JQ() {
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required by netcheck. Install with: sudo apt-get install -y jq" 
+    return 1
+  fi
+  return 0
+}
 
 INSTALL_SPEEDTEST() {
   PRINT_INSTALL
@@ -206,86 +215,187 @@ INSTALL_SPEEDTEST() {
   fi
 }
 
-
 RUN_SPEEDTEST() {
-  # $VAR_SCRIPTLOC/speedtest-cli.py --simple --secure | sed 's/^/                                                 /' | tee -a $VAR_LOGFILE
-  local attempts=10
-  local speedtest_output
-  local retry_delay=4  # Delay in seconds
+  CHECK_JQ || return 1
+
+  local speedtest_cmd
+  local out
+  local attempts=6
+  local retry_delay=3
+  speedtest_cmd=$(command -v speedtest || echo "/usr/bin/speedtest")
+
+  if [ ! -x "$speedtest_cmd" ]; then
+    echo "speedtest binary not found: $speedtest_cmd" 
+    return 1
+  fi
 
   echo "Starting speed test..."
 
-  # Loop to run speedtest multiple times or until download speed is obtained
-  while [[ $attempts -gt 0 ]]; do
-    speedtest_output="$(speedtest)"
-
-    # Check if speedtest output contains download speed
-    if grep -q "Mbps" <<< "$speedtest_output"; then
+  # try until we get valid JSON or run out of attempts
+  while (( attempts > 0 )); do
+    out="$("$speedtest_cmd" --accept-gdpr --format=json 2>&1)" || true
+    if jq -e . >/dev/null 2>&1 <<<"$out"; then
       break
     fi
-
     ((attempts--))
-    sleep $retry_delay  # Add delay between retries
+    sleep "$retry_delay"
   done
 
-  # If download speed was obtained, extract and log upload speed, download speed, and latency
-  if grep -q "Mbps" <<< "$speedtest_output"; then
-    upload=$(echo "$speedtest_output" | awk '/Upload:/ { print $2, $3 }')
-    download=$(echo "$speedtest_output" | awk '/Download:/ { print $2, $3 }')
-    latency=$(echo "$speedtest_output" | awk '/Idle Latency:/ { print $3, $4 }')
-    packet_loss=$(echo "$speedtest_output" | awk '/Packet Loss:/ { print $3 }')
-
-    echo "Upload: $upload" | tee -a "$VAR_LOGFILE"
-    echo "Download: $download" | tee -a "$VAR_LOGFILE"
-    echo "Latency: $latency" | tee -a "$VAR_LOGFILE"
-    echo "Packet Loss: $packet_loss" | tee -a "$VAR_LOGFILE"
-  else
-    echo "Failed to obtain download speed" | tee -a "$VAR_LOGFILE"
+  if ! jq -e . >/dev/null 2>&1 <<<"$out"; then
+    echo "Failed to obtain valid result from speedtest after retries." | tee -a "$VAR_LOGFILE"
+    printf '%s\n' "$out" | sed -n '1,200p' >> "$VAR_LOGFILE"
+    return 1
   fi
+
+  # extract fields as TSV (empty string for missing numeric fields)
+  parsed=$(jq -r '
+    [
+      (.server.name // .server.host // "unknown"),
+      (.server.id // "unknown"),
+      (.server.host // "unknown"),
+      (.server.location // "unknown"),
+      (.server.country // "unknown"),
+      (.download.bandwidth // ""),
+      (.upload.bandwidth // ""),
+      (.ping.latency // ""),
+      (.ping.jitter // ""),
+      (.packetLoss // ""),
+      (.result.url // "N/A")
+    ] | @tsv
+  ' <<<"$out")
+
+  IFS=$'\t' read -r server_name server_id server_host server_location server_country dbw ubw latency jitter pl result_url <<<"$parsed"
+
+  # format numeric fields if present
+  if [ -n "$dbw" ]; then
+    dbw=$(awk "BEGIN {printf \"%.2f Mbps\", $dbw/125000}") # json is in bytes => Megabit (8x10^-6)
+  else
+    dbw="N/A"
+  fi
+
+  if [ -n "$ubw" ]; then
+    ubw=$(awk "BEGIN {printf \"%.2f Mbps\", $ubw/125000}")
+  else
+    ubw="N/A"
+  fi
+
+  if [ -n "$latency" ]; then
+    latency="$(awk "BEGIN {printf \"%.2f ms\", $latency}")"
+  else
+    latency="N/A"
+  fi
+
+  if [ -n "$jitter" ]; then
+    jitter="$(awk "BEGIN {printf \"%.2f ms\", $jitter}")"
+  else
+    jitter=""
+  fi
+
+  if [ -z "$pl" ]; then
+    pl="N/A"
+  else
+    # ensure nice percent formatting if numeric (many clients give numeric like 0 or 0.0)
+    pl="$(awk "BEGIN {printf \"%.1f%%\", $pl}")"
+  fi
+
+  {
+    echo "Server: $server_name (id: $server_id) - $server_host - $server_location, $server_country"
+    echo "Download: $dbw"
+    echo "Upload:   $ubw"
+    if [ -n "$jitter" ]; then
+      echo "Latency:  $latency (jitter: $jitter)"
+    else
+      echo "Latency:  $latency"
+    fi
+    echo "Packet Loss: $pl"
+    echo "Result URL: <a href=\"$result_url\">$result_url</a>"
+  } | tee -a "$VAR_LOGFILE"
 }
 
 NET_CHECK() {
-  while true; do
-    # Check for network connection
-    nohup wget -q --tries=5 --timeout=20 -O - $VAR_HOST > /dev/null 2>&1
-    if [[ $? -eq 0 ]]; then :
-      if [ $VAR_ENABLE_ALWAYS_SPEEDTEST = true ] && [ $VAR_CONNECTED = true ]; then :
-        echo "$STRING_5" | tee -a $VAR_LOGFILE
-        RUN_SPEEDTEST
-        PRINT_HR | tee -a $VAR_LOGFILE
-      fi
-      # We are currently online
-      # Did we just reconnect?
-      if [[ $VAR_CONNECTED = false ]]; then :
-        PRINT_RECONNECTED
-        VAR_DURATION=$SECONDS
-        PRINT_DURATION
-        if [[ $VAR_SPEEDTEST_READY = true ]]; then :
-          PRINT_HR | tee -a $VAR_LOGFILE
-          RUN_SPEEDTEST
-        fi
-        PRINT_HR | tee -a $VAR_LOGFILE
-        SECONDS=0
-        VAR_CONNECTED=true
-        RECONNECTED_EVENT_HOOK $VAR_DURATION
-      fi
-    else
-      # We are offline
-      if [[ $VAR_CONNECTED = false ]]; then :
-          # We were already disconnected
-        else
-          # We just disconnected
-          PRINT_DISCONNECTED
-          DISCONNECTED_EVENT_HOOK
-          SECONDS=0
-          VAR_CONNECTED=false
+  # configuration
+  REQUIRED_CONSECUTIVE=2   # number of consecutive fails/successes required to flip state
+  PING_TARGET="141.227.135.40"    # IP to ping for quick reachability check
+  PING_COUNT=1
+  PING_TIMEOUT=2           # seconds (for ping -W)
+  CURL_TIMEOUT=8           # seconds
+  FAIL_COUNT=0
+  SUCCESS_COUNT=0
+
+  # helper: return 0 on "network OK", non-zero otherwise
+  probe_connection() {
+    # 1) try ping to a known IP (fast, bypasses DNS)
+    if command -v ping >/dev/null 2>&1; then
+      # Use ping options compatible with common Linux ping
+      if ping -c "$PING_COUNT" -W "$PING_TIMEOUT" "$PING_TARGET" >/dev/null 2>&1; then
+        return 0
       fi
     fi
+
+    # 2) try curl HEAD if available (respect VAR_HOST)
+    if command -v curl >/dev/null 2>&1; then
+      # --fail makes curl exit non-zero on HTTP >=400, --head does a HEAD request,
+      # --max-time bounds the total time, -L follows redirects.
+      if curl -sS --head --fail --max-time "$CURL_TIMEOUT" -L "$VAR_HOST" >/dev/null 2>&1; then
+        return 0
+      fi
+    fi
+
+    # 3) fallback to wget --spider (do not use nohup). --spider only checks existence.
+    if command -v wget >/dev/null 2>&1; then
+      if wget -q --spider --timeout="$CURL_TIMEOUT" --tries=1 "$VAR_HOST" >/dev/null 2>&1; then
+        return 0
+      fi
+    fi
+
+    # nothing succeeded
+    return 1
+  }
+
+  while true; do
+    if probe_connection; then
+      # probe succeeded
+      ((SUCCESS_COUNT++))
+      FAIL_COUNT=0
+    else
+      # probe failed
+      ((FAIL_COUNT++))
+      SUCCESS_COUNT=0
+    fi
+
+    # Only flip to "down" after REQUIRED_CONSECUTIVE failures
+    if [[ $FAIL_COUNT -ge $REQUIRED_CONSECUTIVE ]] && [[ $VAR_CONNECTED = true ]]; then
+      # just disconnected
+      PRINT_DISCONNECTED
+      DISCONNECTED_EVENT_HOOK
+      SECONDS=0
+      VAR_CONNECTED=false
+      # reset counters so we don't re-fire repeatedly
+      FAIL_COUNT=0
+      SUCCESS_COUNT=0
+    fi
+
+    # Only flip to "connected" after REQUIRED_CONSECUTIVE successes
+    if [[ $SUCCESS_COUNT -ge $REQUIRED_CONSECUTIVE ]] && [[ $VAR_CONNECTED = false ]]; then
+      PRINT_RECONNECTED
+      VAR_DURATION=$SECONDS
+      PRINT_DURATION
+      if [[ $VAR_SPEEDTEST_READY = true ]]; then
+        PRINT_HR | tee -a $VAR_LOGFILE
+        RUN_SPEEDTEST
+      fi
+      PRINT_HR | tee -a $VAR_LOGFILE
+      SECONDS=0
+      VAR_CONNECTED=true
+      RECONNECTED_EVENT_HOOK $VAR_DURATION
+      # reset counters
+      FAIL_COUNT=0
+      SUCCESS_COUNT=0
+    fi
+
     CHECK_EVENT_HOOK
-    sleep $VAR_CHECK_TIME
-
+    sleep "$VAR_CHECK_TIME"
   done
-
 }
 
 INSTALL_AS_SERVICE() {
