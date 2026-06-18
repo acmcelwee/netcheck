@@ -15,7 +15,48 @@ You can use a service such as NGROK to allow you to see the web interface outsid
     cd netcheck
     chmod +x netcheck.sh
     ./netcheck.sh
-    
+
+### Running with Docker
+
+You can run netcheck as a Docker container. The image is automatically built and published to the GitHub Container Registry.
+
+#### Using Docker Run
+
+To run the container and expose the web interface (port 9000):
+
+    docker run -d \
+      --name netcheck \
+      -p 9000:9000 \
+      -v netcheck-logs:/app/log \
+      ghcr.io/acmcelwee/netcheck:latest
+
+#### Using Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  netcheck:
+    image: ghcr.io/acmcelwee/netcheck:latest
+    container_name: netcheck
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - netcheck-logs:/app/log
+
+volumes:
+  netcheck-logs:
+```
+
+#### Passing Options
+
+You can pass standard netcheck options directly to the container:
+
+    docker run -it --rm ghcr.io/acmcelwee/netcheck:latest -s -c 10
+
 ### CLI Interface
 ![Netcheck CLI interface](netcheck.png)
 

@@ -233,15 +233,15 @@ RUN_SPEEDTEST() {
 
   # try until we get valid JSON or run out of attempts
   while (( attempts > 0 )); do
-    out="$("$speedtest_cmd" --accept-gdpr --format=json 2>&1)" || true
-    if jq -e . >/dev/null 2>&1 <<<"$out"; then
+    out="$("$speedtest_cmd" --accept-license --accept-gdpr --format=json 2>&1)" || true
+    if jq -e '.type == "result"' >/dev/null 2>&1 <<<"$out"; then
       break
     fi
     ((attempts--))
     sleep "$retry_delay"
   done
 
-  if ! jq -e . >/dev/null 2>&1 <<<"$out"; then
+  if ! jq -e '.type == "result"' >/dev/null 2>&1 <<<"$out"; then
     echo "Failed to obtain valid result from speedtest after retries." | tee -a "$VAR_LOGFILE"
     printf '%s\n' "$out" | sed -n '1,200p' >> "$VAR_LOGFILE"
     return 1
@@ -249,6 +249,7 @@ RUN_SPEEDTEST() {
 
   # extract fields as TSV (empty string for missing numeric fields)
   parsed=$(jq -r '
+    select(.type == "result") |
     [
       (.server.name // .server.host // "unknown"),
       (.server.id // "unknown"),
